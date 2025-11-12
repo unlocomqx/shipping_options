@@ -223,8 +223,8 @@ class Shippingoptions extends Module
                         'id_source_product' => 0,
                         'id_attribute' => 0,
                         'is_admin_edit' => false,
-                        'is_create_customization' => (int)(Tools::getValue('action') === 'create_customization' && $is_admin),
-                        'dp_customer' => (int)Tools::getValue('dp_customer', 0),
+                        'is_create_customization' => 0,
+                        'dp_customer' => 0,
                         'main_config' => $main_config,
                         'controllers' => [
                             'loader' => $this->context->link->getModuleLink($dynamicproduct->name, 'loader'),
