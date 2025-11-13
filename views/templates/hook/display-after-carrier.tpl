@@ -2,6 +2,6 @@
 
 <style>
     body:not(:has([name^="delivery_option"][value="{$shipping_option},"]:checked)) #dp_product {
-        display: _none;
+        display: none;
     }
 </style>
