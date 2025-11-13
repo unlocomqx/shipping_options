@@ -1,27 +1,33 @@
-/**
-* 2007-2025 PrestaShop
-*
-* NOTICE OF LICENSE
-*
-* This source file is subject to the Academic Free License (AFL 3.0)
-* that is bundled with this package in the file LICENSE.txt.
-* It is also available through the world-wide-web at this URL:
-* http://opensource.org/licenses/afl-3.0.php
-* If you did not receive a copy of the license and are unable to
-* obtain it through the world-wide-web, please send an email
-* to license@prestashop.com so we can send you a copy immediately.
-*
-* DISCLAIMER
-*
-* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
-* versions in the future. If you wish to customize PrestaShop for your
-* needs please refer to http://www.prestashop.com for more information.
-*
-*  @author    PrestaShop SA <contact@prestashop.com>
-*  @copyright 2007-2025 PrestaShop SA
-*  @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
-*  International Registered Trademark & Property of PrestaShop SA
-*
-* Don't forget to prefix your containers with your own identifier
-* to avoid any conflicts with others containers.
-*/
+var delivery_id_input = 0;
+
+document.addEventListener('dp-loaded', function() {
+  // document.querySelectorAll('#dp_product [name]').forEach(el => el.setAttribute('form', 'js-delivery'));
+
+  const shipping_option = window.getField('shipping_options').init.toString();
+
+  const selectDeliveryOptionOriginal = selectDeliveryOption;
+  window.selectDeliveryOption = function(deliveryForm) {
+    const delivery_options = document.querySelector('[name^=delivery_option]:checked').value.split(',');
+    if(delivery_options.includes(shipping_option)){
+      window.dpSaveCustomization(false).then(function(res){
+        delivery_id_input = Object.values(res.id_inputs)[0]
+        selectDeliveryOptionOriginal(deliveryForm);
+      })
+    } else {
+      selectDeliveryOptionOriginal(deliveryForm);
+    }
+  }
+
+  window.dp_calc.subscribe(function () {
+    window.setTimeout(function() {
+      window.selectDeliveryOption($('#js-delivery'));
+    }, 100);
+  })
+});
+
+$(document).ajaxSend(function(event, jqXHR, settings) {
+  if (settings.url.includes('selectDeliveryOption')) {
+    settings.data += '&id_input=' + delivery_id_input;
+  }
+});
+

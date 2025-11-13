@@ -28,290 +28,331 @@ use DynamicProduct\classes\DynamicTools;
 use DynamicProduct\classes\helpers\DynamicInputFieldsHelper;
 use DynamicProduct\classes\models\DynamicConfig;
 use DynamicProduct\classes\models\DynamicField;
+use DynamicProduct\classes\models\DynamicInput;
 use DynamicProduct\classes\models\DynamicMainConfig;
 use DynamicProduct\lib\media\DynamicEntriesHelper;
 
 if (!defined('_PS_VERSION_')) {
-    exit;
+  exit;
 }
 
 class Shippingoptions extends Module
 {
-    protected $config_form = false;
-
-    public function __construct()
-    {
-        $this->name = 'shippingoptions';
-        $this->tab = 'shipping_logistics';
-        $this->version = '1.0.0';
-        $this->author = 'TuniSoft';
-        $this->need_instance = 0;
-
-        /**
-         * Set $this->bootstrap to true if your module is compliant with bootstrap (PrestaShop 1.6)
-         */
-        $this->bootstrap = true;
-
-        parent::__construct();
-
-        $this->displayName = $this->l('Shipping Options');
-        $this->description = $this->l('Display extra shipping option for certain carriers');
-
-        $this->ps_versions_compliancy = array('min' => '1.6', 'max' => '9.0');
-    }
+  public function __construct()
+  {
+    $this->name = 'shippingoptions';
+    $this->tab = 'shipping_logistics';
+    $this->version = '1.0.0';
+    $this->author = 'TuniSoft';
+    $this->need_instance = 0;
 
     /**
-     * Don't forget to create update methods if needed:
-     * http://doc.prestashop.com/display/PS16/Enabling+the+Auto-Update
+     * Set $this->bootstrap to true if your module is compliant with bootstrap (PrestaShop 1.6)
      */
-    public function install()
-    {
-        return parent::install() &&
-            $this->registerHook('header') &&
-            $this->registerHook('displayBackOfficeHeader') &&
-            $this->registerHook('actionCarrierProcess') &&
-            $this->registerHook('actionCarrierUpdate') &&
-            $this->registerHook('displayAfterCarrier') &&
-            $this->registerHook('displayCarrierExtraContent') &&
-            $this->registerHook('displayCarrierList');
-    }
+    $this->bootstrap = true;
 
-    public function uninstall()
-    {
-        Configuration::deleteByName('SHIPPINGOPTIONS_ID_PRODUCT');
+    parent::__construct();
 
-        return parent::uninstall();
-    }
+    $this->displayName = $this->l('Shipping Options');
+    $this->description = $this->l('Display extra shipping option for certain carriers');
 
+    $this->ps_versions_compliancy = array('min' => '1.6', 'max' => '9.0');
+  }
+
+  /**
+   * Don't forget to create update methods if needed:
+   * http://doc.prestashop.com/display/PS16/Enabling+the+Auto-Update
+   */
+  public function install()
+  {
+    Db::getInstance()->execute('CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'shippingoptions_inputs` (
+      `id_cart` INT(11) NOT NULL,
+      `id_input` INT(11) NOT NULL,
+      PRIMARY KEY (`id_cart`)
+    ) ENGINE=' . _MYSQL_ENGINE_ . ';');
+
+    return parent::install() &&
+        $this->registerHook('header') &&
+        $this->registerHook('displayBackOfficeHeader') &&
+        $this->registerHook('actionCarrierProcess') &&
+        $this->registerHook('actionCarrierUpdate') &&
+        $this->registerHook('displayAfterCarrier') &&
+        $this->registerHook('displayAdminOrderTop');
+  }
+
+  public function uninstall()
+  {
+    Configuration::deleteByName('SHIPPINGOPTIONS_ID_PRODUCT');
+
+    return parent::uninstall();
+  }
+
+  /**
+   * Load the configuration form
+   */
+  public function getContent()
+  {
     /**
-     * Load the configuration form
+     * If values have been submitted in the form, process.
      */
-    public function getContent()
-    {
-        /**
-         * If values have been submitted in the form, process.
-         */
-        if (((bool)Tools::isSubmit('submitShippingoptionsModule')) == true) {
-            $this->postProcess();
-        }
+    if (((bool)Tools::isSubmit('submitShippingoptionsModule')) == true) {
+      $this->postProcess();
+    }
 
-        $this->context->smarty->assign('module_dir', $this->_path);
+    $this->context->smarty->assign('module_dir', $this->_path);
 
 //        $output = $this->context->smarty->fetch($this->local_path . 'views/templates/admin/configure.tpl');
-        $output = '';
-        return $output . $this->renderForm();
-    }
+    $output = '';
+    return $output . $this->renderForm();
+  }
 
-    /**
-     * Create the form that will be displayed in the configuration of your module.
-     */
-    protected function renderForm()
-    {
-        $helper = new HelperForm();
+  /**
+   * Create the form that will be displayed in the configuration of your module.
+   */
+  protected function renderForm()
+  {
+    $helper = new HelperForm();
 
-        $helper->show_toolbar = false;
-        $helper->table = $this->table;
-        $helper->module = $this;
-        $helper->default_form_language = $this->context->language->id;
-        $helper->allow_employee_form_lang = Configuration::get('PS_BO_ALLOW_EMPLOYEE_FORM_LANG', 0);
+    $helper->show_toolbar = false;
+    $helper->table = $this->table;
+    $helper->module = $this;
+    $helper->default_form_language = $this->context->language->id;
+    $helper->allow_employee_form_lang = Configuration::get('PS_BO_ALLOW_EMPLOYEE_FORM_LANG', 0);
 
-        $helper->identifier = $this->identifier;
-        $helper->submit_action = 'submitShippingoptionsModule';
-        $helper->currentIndex = $this->context->link->getAdminLink('AdminModules', false)
-            . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name;
-        $helper->token = Tools::getAdminTokenLite('AdminModules');
+    $helper->identifier = $this->identifier;
+    $helper->submit_action = 'submitShippingoptionsModule';
+    $helper->currentIndex = $this->context->link->getAdminLink('AdminModules', false)
+        . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name;
+    $helper->token = Tools::getAdminTokenLite('AdminModules');
 
-        $helper->tpl_vars = array(
-            'fields_value' => $this->getConfigFormValues(), /* Add values for your inputs */
-            'languages' => $this->context->controller->getLanguages(),
-            'id_language' => $this->context->language->id,
-        );
+    $helper->tpl_vars = array(
+        'fields_value' => $this->getConfigFormValues(), /* Add values for your inputs */
+        'languages' => $this->context->controller->getLanguages(),
+        'id_language' => $this->context->language->id,
+    );
 
-        return $helper->generateForm(array($this->getConfigForm()));
-    }
+    return $helper->generateForm(array($this->getConfigForm()));
+  }
 
-    /**
-     * Create the structure of your form.
-     */
-    protected function getConfigForm()
-    {
-        return array(
-            'form' => array(
-                'legend' => array(
-                    'title' => $this->l('Settings'),
-                    'icon' => 'icon-cogs',
-                ),
-                'input' => array(
-                    array(
-                        'col' => 3,
-                        'type' => 'text',
-                        'prefix' => '<i class="icon icon-cog"></i>',
-                        'desc' => $this->l('The product containing the shipping options'),
-                        'name' => 'SHIPPINGOPTIONS_ID_PRODUCT',
-                        'label' => $this->l('Product ID'),
-                    ),
-                ),
-                'submit' => array(
-                    'title' => $this->l('Save'),
+  /**
+   * Create the structure of your form.
+   */
+  protected function getConfigForm()
+  {
+    return array(
+        'form' => array(
+            'legend' => array(
+                'title' => $this->l('Settings'),
+                'icon' => 'icon-cogs',
+            ),
+            'input' => array(
+                array(
+                    'col' => 3,
+                    'type' => 'text',
+                    'prefix' => '<i class="icon icon-cog"></i>',
+                    'desc' => $this->l('The product containing the shipping options'),
+                    'name' => 'SHIPPINGOPTIONS_ID_PRODUCT',
+                    'label' => $this->l('Product ID'),
                 ),
             ),
+            'submit' => array(
+                'title' => $this->l('Save'),
+            ),
+        ),
+    );
+  }
+
+  /**
+   * Set values for the inputs.
+   */
+  protected function getConfigFormValues()
+  {
+    return array(
+        'SHIPPINGOPTIONS_ID_PRODUCT' => Configuration::get('SHIPPINGOPTIONS_ID_PRODUCT', true),
+    );
+  }
+
+  /**
+   * Save form data.
+   */
+  protected function postProcess()
+  {
+    $form_values = $this->getConfigFormValues();
+
+    foreach (array_keys($form_values) as $key) {
+      Configuration::updateValue($key, Tools::getValue($key));
+    }
+  }
+
+  /**
+   * Add the CSS & JavaScript files you want to be loaded in the BO.
+   */
+  public function hookDisplayBackOfficeHeader()
+  {
+    if (Tools::getValue('configure') == $this->name) {
+      $this->context->controller->addJS($this->_path . 'views/js/back.js');
+      $this->context->controller->addCSS($this->_path . 'views/css/back.css');
+    }
+  }
+
+  /**
+   * Add the CSS & JavaScript files you want to be added on the FO.
+   */
+  public function hookHeader()
+  {
+    if (Tools::getIsset('ajax') || !empty($_POST)) {
+      return "";
+    }
+
+    $controller = Tools::getValue('controller');
+    if ($controller !== 'order') {
+      return "";
+    }
+
+    $scripts = [];
+    $output = '';
+    $id_product = (int)Configuration::get('SHIPPINGOPTIONS_ID_PRODUCT');
+    $product_config = DynamicConfig::getByProduct($id_product);
+
+    if ($product_config->active) {
+      /** @var DynamicProduct $dynamicproduct */
+      $dynamicproduct = Module::getInstanceByName('dynamicproduct');
+      $entries_helper = new DynamicEntriesHelper($this, $this->context);
+      $is_hot_mode = DynamicTools::isHotMode(2001);
+
+      $this->context->controller->addJqueryUI('ui.tooltip');
+      $this->context->controller->addJqueryUI('ui.spinner');
+      $this->context->controller->addJqueryUI('ui.slider');
+      $this->context->controller->addJqueryUI('ui.datepicker');
+      $this->context->controller->addJqueryUI('ui.progressbar');
+
+      $main_config = DynamicMainConfig::getConfig();
+      if ($main_config->defer_load) {
+        Media::addJsDef([
+            'dp_hot_mode' => $is_hot_mode,
+            'ps_module_dev' => DynamicTools::isModuleDevMode(),
+            'dp' => [
+                'id_product' => $id_product,
+                'id_source_product' => 0,
+                'id_attribute' => 0,
+                'is_admin_edit' => false,
+                'is_create_customization' => 0,
+                'dp_customer' => 0,
+                'main_config' => $main_config,
+                'controllers' => [
+                    'loader' => $this->context->link->getModuleLink($dynamicproduct->name, 'loader'),
+                ],
+            ],
+        ]);
+      } else {
+        $input_fields_helper = new DynamicInputFieldsHelper($dynamicproduct, $this->context);
+        $variables = $input_fields_helper->loadVariables(
+            [
+                'is_hot_mode' => $is_hot_mode,
+                'id_product' => $id_product,
+                'id_source_product' => 0,
+                'id_attribute' => 0,
+                'is_admin_edit' => false,
+                'url_values' => [],
+            ]
         );
+        Media::addJsDef($variables);
+      }
+
+      if (!$is_hot_mode) {
+        $scripts = array_merge($scripts, [
+            $entries_helper->getEntry('../../vite/legacy-polyfills-legacy'),
+            $entries_helper->getEntry('front/product-buttons-legacy.ts'),
+        ]);
+      } else {
+        $this->smarty->assign('script', DynamicTools::addScriptBase('front/product-buttons.ts'));
+        $output .= $this->fetch($dynamicproduct->getFilePath('views/templates/hook/vite-script.tpl'));
+      }
+
+      Media::addJsDef([
+          'dp_version' => $this->version,
+          'dp_id_module' => $this->id,
+          'dp_public_path' => $dynamicproduct->getFolderUrl('lib/media/dist/'),
+          'dp_id_input' => 0,
+      ]);
+
+      Media::addJsDef([
+          'dp_scripts' => array_map(function ($script) use ($dynamicproduct) {
+            return $dynamicproduct->getPathUri() . $script;
+          }, array_unique($scripts)),
+      ]);
+
+      if (count($scripts)) {
+        $output .= $this->fetch($dynamicproduct->getFilePath('views/templates/api/scripts.tpl'));
+      }
+
+      $this->context->controller->addJS($this->_path . '/views/js/front.js');
+
+      return $output;
     }
 
-    /**
-     * Set values for the inputs.
-     */
-    protected function getConfigFormValues()
-    {
-        return array(
-            'SHIPPINGOPTIONS_ID_PRODUCT' => Configuration::get('SHIPPINGOPTIONS_ID_PRODUCT', true),
-        );
+    return "";
+  }
+
+  public function hookActionCarrierProcess($params)
+  {
+    $id_cart = $params['cart']->id;
+    $delivery_options = explode(',', array_values(Tools::getValue('delivery_option', ['']))[0]);
+
+    $id_product = (int)Configuration::get('SHIPPINGOPTIONS_ID_PRODUCT');
+    $product_config = DynamicConfig::getByProduct($id_product);
+    if ($product_config->active) {
+      $shipping_options = DynamicField::getFieldByName($id_product, 'shipping_options');
+      $shipping_option = (string)$shipping_options->init;
+      $current_input = (int)Db::getInstance()->getValue('SELECT id_input FROM `' . _DB_PREFIX_ . 'shippingoptions_inputs` WHERE id_cart = ' . (int)$id_cart);
+      if ($current_input) {
+        $input = new DynamicInput($current_input);
+        $input->delete();
+        Db::getInstance()->execute('DELETE FROM `' . _DB_PREFIX_ . 'shippingoptions_inputs` WHERE id_cart = ' . (int)$id_cart);
+      }
+
+      if (in_array($shipping_option, $delivery_options, true)) {
+        $id_input = (int)Tools::getValue('id_input');
+        Db::getInstance()->execute('REPLACE INTO `' . _DB_PREFIX_ . 'shippingoptions_inputs` (`id_cart`, `id_input`) VALUES (' . (int)$id_cart . ', ' . (int)$id_input . ')');
+      }
+    }
+  }
+
+  public function hookActionCarrierUpdate()
+  {
+    $a = 1;
+  }
+
+  public function hookDisplayAfterCarrier()
+  {
+    $id_product = (int)Configuration::get('SHIPPINGOPTIONS_ID_PRODUCT');
+    $product_config = DynamicConfig::getByProduct($id_product);
+    if ($product_config->active) {
+      $shipping_options = DynamicField::getFieldByName($id_product, 'shipping_options');
+      $shipping_option = (int)$shipping_options->init;
+      $this->context->smarty->assign([
+          'shipping_option' => $shipping_option,
+      ]);
+      return $this->display(__FILE__, 'views/templates/hook/display-after-carrier.tpl');
     }
 
-    /**
-     * Save form data.
-     */
-    protected function postProcess()
-    {
-        $form_values = $this->getConfigFormValues();
+    return "";
+  }
 
-        foreach (array_keys($form_values) as $key) {
-            Configuration::updateValue($key, Tools::getValue($key));
-        }
+  public function hookDisplayAdminOrderTop($params)
+  {
+    $id_cart = Order::getCartIdStatic($params['id_order']);
+    $id_input = (int)Db::getInstance()->getValue('SELECT id_input FROM `' . _DB_PREFIX_ . 'shippingoptions_inputs` WHERE id_cart = ' . (int)$id_cart);
+    if($id_input){
+      /** @var DynamicProduct $module */
+      $module = Module::getInstanceByName('dynamicproduct');
+      $summary = $module->hookDisplayInputSummary($id_input);
+      $this->context->smarty->assign([
+          'summary' => $summary,
+      ]);
+      return $this->display(__FILE__, 'views/templates/hook/display-admin-order-top.tpl');
     }
 
-    /**
-     * Add the CSS & JavaScript files you want to be loaded in the BO.
-     */
-    public function hookDisplayBackOfficeHeader()
-    {
-        if (Tools::getValue('configure') == $this->name) {
-            $this->context->controller->addJS($this->_path . 'views/js/back.js');
-            $this->context->controller->addCSS($this->_path . 'views/css/back.css');
-        }
-    }
-
-    /**
-     * Add the CSS & JavaScript files you want to be added on the FO.
-     */
-    public function hookHeader()
-    {
-        $scripts = [];
-        $output = '';
-        $id_product = (int)Configuration::get('SHIPPINGOPTIONS_ID_PRODUCT');
-        $product_config = DynamicConfig::getByProduct($id_product);
-
-        if ($product_config->active) {
-            /** @var DynamicProduct $dynamicproduct */
-            $dynamicproduct = Module::getInstanceByName('dynamicproduct');
-            $entries_helper = new DynamicEntriesHelper($this, $this->context);
-            $is_hot_mode = DynamicTools::isHotMode(2001);
-
-            $this->context->controller->addJqueryUI('ui.tooltip');
-            $this->context->controller->addJqueryUI('ui.spinner');
-            $this->context->controller->addJqueryUI('ui.slider');
-            $this->context->controller->addJqueryUI('ui.datepicker');
-            $this->context->controller->addJqueryUI('ui.progressbar');
-
-            $main_config = DynamicMainConfig::getConfig();
-            if ($main_config->defer_load) {
-                Media::addJsDef([
-                    'dp_hot_mode' => $is_hot_mode,
-                    'ps_module_dev' => DynamicTools::isModuleDevMode(),
-                    'dp' => [
-                        'id_product' => $id_product,
-                        'id_source_product' => 0,
-                        'id_attribute' => 0,
-                        'is_admin_edit' => false,
-                        'is_create_customization' => 0,
-                        'dp_customer' => 0,
-                        'main_config' => $main_config,
-                        'controllers' => [
-                            'loader' => $this->context->link->getModuleLink($dynamicproduct->name, 'loader'),
-                        ],
-                    ],
-                ]);
-            } else {
-                $input_fields_helper = new DynamicInputFieldsHelper($dynamicproduct, $this->context);
-                $variables = $input_fields_helper->loadVariables(
-                    [
-                        'is_hot_mode' => $is_hot_mode,
-                        'id_product' => $id_product,
-                        'id_source_product' => 0,
-                        'id_attribute' => 0,
-                        'is_admin_edit' => false,
-                        'url_values' => [],
-                    ]
-                );
-                Media::addJsDef($variables);
-            }
-
-            if (!$is_hot_mode) {
-                $scripts = array_merge($scripts, [
-                    $entries_helper->getEntry('../../vite/legacy-polyfills-legacy'),
-                    $entries_helper->getEntry('front/product-buttons-legacy.ts'),
-                ]);
-            } else {
-                $this->smarty->assign('script', DynamicTools::addScriptBase('front/product-buttons.ts'));
-                $output .= $this->fetch($dynamicproduct->getFilePath('views/templates/hook/vite-script.tpl'));
-            }
-
-            Media::addJsDef([
-                'dp_version' => $this->version,
-                'dp_id_module' => $this->id,
-                'dp_public_path' => $dynamicproduct->getFolderUrl('lib/media/dist/'),
-                'dp_id_input' => 0,
-            ]);
-
-            Media::addJsDef([
-                'dp_scripts' => array_map(function ($script) use ($dynamicproduct) {
-                    return $dynamicproduct->getPathUri() . $script;
-                }, array_unique($scripts)),
-            ]);
-
-            if (count($scripts)) {
-                $output .= $this->fetch($dynamicproduct->getFilePath('views/templates/api/scripts.tpl'));
-            }
-
-            return $output;
-        }
-
-        return "";
-    }
-
-    public function hookActionCarrierProcess()
-    {
-        $a = 1;
-    }
-
-    public function hookActionCarrierUpdate()
-    {
-        $a = 1;
-    }
-
-    public function hookDisplayAfterCarrier()
-    {
-        $id_product = (int)Configuration::get('SHIPPINGOPTIONS_ID_PRODUCT');
-        $product_config = DynamicConfig::getByProduct($id_product);
-        if ($product_config->active) {
-            $shipping_options = DynamicField::getFieldByName($id_product, 'shipping_options');
-            $shipping_option = (int)$shipping_options->init;
-            $this->context->smarty->assign([
-                'shipping_option' => $shipping_option,
-            ]);
-            return $this->display(__FILE__, 'views/templates/hook/display-after-carrier.tpl');
-        }
-
-        return "";
-    }
-
-    public function hookDisplayCarrierExtraContent()
-    {
-        $a = 1;
-    }
-
-    public function hookDisplayCarrierList()
-    {
-        $a = 1;
-    }
+    return '';
+  }
 }
